@@ -59,6 +59,30 @@ def markov(nx, ny, eps = .001):
   return ((v - v.min()) / (v.max() - v.min())).resolve()
 # }}}
 
+# {{{ islandifiy
+def islandify(h, beta=1e2, niter=None):
+    ig = clvol.ImageGeom(*h.shape)
+    ix, iy, iz = clvol.fft3_indices(ig.shape)
+    m = 2**(-.0001*((ix - ig.nx//2)**2 + (iy - ig.ny//2)**2))
+    m = m.resolve()
+    m = (m * (ix>=1)*(ix<ig.nx-1)*(iy>=1)*(iy<ig.ny-1)).resolve()
+
+    # blast away edges
+    omask = (ix>=1)*(ix<ig.nx-1)*(iy>=1)*(iy<ig.ny-1)
+    h = (omask * h).resolve()
+
+    R = clvol.Regularizer(ig.diff('2d8'), beta, ig.ones, 
+            clvol.PotentialFunc('quad', (1,)))
+
+    iter = niter
+    if iter is None:
+        iter = max(ig.nx, ig.ny)
+
+    S = clvol.PCG(ig.eye, m, R, precon=clvol.Diag(omask.resolve()))
+
+    return clvol.vmax(0, S(h, h, iter)).resolve()
+# }}}
+
 # {{{ watershed
 def watershed(h, sea_level = 0):
   return ((h < sea_level) * sea_level).resolve()
